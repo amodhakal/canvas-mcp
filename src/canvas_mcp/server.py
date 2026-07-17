@@ -21,9 +21,20 @@ import json
 import sys
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 from fastmcp import FastMCP
+
+# Allow running this file directly (e.g. `python src/canvas_mcp/server.py` or
+# when a tool inspects it as a top-level script). In that mode there is no
+# parent package, so relative imports below would fail with
+# "attempted relative import with no known parent package". Insert the repo's
+# src/ root onto sys.path and declare the package so the relative imports
+# resolve exactly as they do for `python -m canvas_mcp` / `canvas-mcp-server`.
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    __package__ = "canvas_mcp"
 
 from .core.config import get_config, validate_config
 from .core.credentials import (
@@ -713,6 +724,18 @@ def _run_http_server(mcp: FastMCP, host: str, port: int) -> None:
     import anyio
 
     anyio.run(server.serve)
+
+
+# Module-level server instance for tooling that introspects this file as a
+# module (e.g. `fastmcp inspect`, the hosted build step, and some MCP clients
+# that expect a discoverable `mcp`/`server`/`app` object). Building it here
+# does not change runtime behavior: `main()` still constructs and runs its own
+# instance with the resolved CLI/env role.
+mcp = create_server()
+_mcp_role = get_config().canvas_role or "all"
+if _mcp_role not in ("student", "educator", "all"):
+    _mcp_role = "all"
+register_all_tools(mcp, role=_mcp_role)
 
 
 if __name__ == "__main__":
